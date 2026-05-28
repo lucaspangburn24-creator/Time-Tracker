@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Job Time Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+  :root {
+    --bg:#0f1117;--surface:#181b24;--card:#1e2230;--border:#2a2f40;
+    --text:#e8eaf0;--dim:#6b7394;--accent:#38bdf8;--green:#34d399;
+    --red:#f87171;--amber:#fbbf24;--purple:#a78bfa;--orange:#fb923c;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:'Outfit','Segoe UI',sans-serif;min-height:100vh;-webkit-tap-highlight-color:transparent}
+  .mono{font-family:'JetBrains Mono',monospace}
+
+  /* Mobile-first touch targets */
+  button,select,input{min-height:44px}
+  select{-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7394' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:36px}
+
+  .header{background:linear-gradient(135deg,var(--surface),var(--card));border-bottom:1px solid var(--border);padding:16px 16px 12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;position:sticky;top:0;z-index:50}
+  .header h1{font-size:20px;font-weight:900;letter-spacing:-0.5px}
+  .header h1 span{color:var(--accent)}
+  .header .sub{font-size:11px;color:var(--dim);margin-top:2px}
+  .tabs{display:flex;gap:4px;flex-wrap:wrap}
+  .tab{padding:7px 12px;border-radius:8px;border:none;background:var(--card);color:var(--dim);font-weight:700;font-size:12px;cursor:pointer;letter-spacing:0.3px;transition:all .2s;font-family:inherit}
+  .tab.active{background:var(--accent);color:var(--bg)}
+  @media(min-width:600px){.tab{padding:8px 18px;font-size:13px} .header{padding:20px 24px 16px} .header h1{font-size:22px}}
+
+  .container{max-width:700px;margin:0 auto;padding:20px 12px 40px}
+  @media(min-width:600px){.container{padding:24px 16px 40px}}
+  .card{background:var(--card);border-radius:12px;border:1px solid var(--border);padding:16px}
+  @media(min-width:600px){.card{padding:20px}}
+  .section-label{font-size:12px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:2px;margin-bottom:12px}
+  @media(min-width:600px){.section-label{font-size:13px}}
+
+  .input{background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:12px 14px;font-size:16px;width:100%;outline:none;font-family:'JetBrains Mono',monospace;letter-spacing:2px;text-transform:uppercase;box-sizing:border-box}
+  .input:focus{border-color:var(--accent)}
+  .input.name-input{text-transform:none;letter-spacing:0;font-family:'Outfit',sans-serif}
+  .input-date{background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-size:14px;outline:none;font-family:'Outfit',sans-serif}
+  .input-date:focus{border-color:var(--accent)}
+
+  .btn{padding:12px 24px;border-radius:8px;border:none;background:var(--accent);color:var(--bg);font-weight:800;font-size:14px;cursor:pointer;letter-spacing:1px;font-family:inherit;white-space:nowrap}
+  .btn-secondary{background:var(--card);color:var(--dim)}
+  .btn-red{background:var(--red);color:#fff;font-size:12px;padding:8px 14px}
+  .btn-ghost{background:none;border:none;color:var(--red);cursor:pointer;font-size:18px;padding:4px 8px}
+  .btn-cancel{background:none;border:none;color:var(--red);cursor:pointer;font-weight:700;font-size:12px;font-family:inherit}
+  .btn-reset{background:none;border:1px solid rgba(248,113,113,.2);border-radius:8px;color:var(--red);padding:10px 0;font-size:12px;font-weight:700;cursor:pointer;opacity:0.6;width:100%;font-family:inherit}
+  .btn-add{background:var(--card);color:var(--dim);font-weight:700;font-size:13px;padding:8px 18px;border-radius:8px;border:none;cursor:pointer;font-family:inherit}
+  .btn-export{padding:10px 20px;border-radius:8px;border:none;background:var(--green);color:var(--bg);font-weight:800;font-size:13px;cursor:pointer;font-family:inherit}
+  .btn-print{padding:12px 28px;border-radius:8px;border:none;background:var(--purple);color:#fff;font-weight:800;font-size:14px;cursor:pointer;font-family:inherit}
+  .input-row{display:flex;gap:10px}
+
+  .toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:999;padding:12px 24px;border-radius:10px;font-weight:700;font-size:14px;color:var(--bg);box-shadow:0 8px 32px rgba(0,0,0,.5);max-width:90vw;text-align:center;animation:slideDown .3s ease;display:none}
+  .toast.show{display:block}
+  .toast.info{background:var(--accent)} .toast.error{background:var(--red)} .toast.in{background:var(--green)} .toast.out{background:var(--amber)}
+  @keyframes slideDown{from{opacity:0;transform:translateX(-50%) translateY(-20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+  .active-card{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;border-left:3px solid var(--green);padding:14px 16px}
+  .active-timer{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--green);animation:pulse 2s infinite}
+  @media(min-width:600px){.active-timer{font-size:22px} .active-card{padding:16px 20px}}
+  .scanned-info{background:var(--surface);border-radius:8px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+  .scanned-info .name{font-weight:700}
+  .list-item{display:flex;align-items:center;justify-content:space-between;padding:14px}
+  .list-item-left{display:flex;align-items:center;gap:14px}
+  .list-item-name{font-weight:700}
+  .history-item{padding:14px}
+  .history-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+  .history-meta{font-size:11px;color:var(--dim);margin-top:6px}
+  .summary-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .progress-bar{height:4px;border-radius:2px;background:var(--surface);overflow:hidden;margin-top:3px}
+  .progress-fill{height:100%;background:var(--accent);border-radius:2px}
+  .export-box{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:16px}
+  .export-box label{font-size:12px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:1px}
+  .export-count{font-size:12px;color:var(--dim);margin-left:auto}
+  .qr-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0}
+  .qr-code-label{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
+  .scan-mode-toggle{display:flex;gap:0;border-radius:8px;overflow:hidden;border:1px solid var(--border);margin-bottom:16px}
+  .scan-mode-btn{flex:1;padding:10px 0;border:none;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;text-align:center;transition:all .2s;background:var(--surface);color:var(--dim)}
+  .scan-mode-btn.active{background:var(--accent);color:var(--bg)}
+  #scanner-box{width:100%;border-radius:12px;overflow:hidden;position:relative;background:#000}
+  #scanner-box video{width:100%!important;display:block;border-radius:12px}
+  .scanner-status{text-align:center;padding:10px;font-size:13px;font-weight:700;color:var(--green);background:var(--surface);border-radius:8px;margin-top:10px}
+  .btn-scan-start{padding:14px 20px;border-radius:10px;border:none;background:var(--green);color:var(--bg);font-weight:800;font-size:15px;cursor:pointer;font-family:inherit;width:100%}
+  .btn-scan-stop{padding:10px 20px;border-radius:8px;border:none;background:var(--red);color:#fff;font-weight:800;font-size:13px;cursor:pointer;font-family:inherit;width:100%;margin-top:10px}
+  .scan-steps{display:flex;gap:4px;margin-bottom:16px}
+  .scan-step-dot{flex:1;height:6px;border-radius:3px;background:var(--border);transition:background .3s}
+  .scan-step-dot.done{background:var(--green)} .scan-step-dot.active{background:var(--accent)}
+  .print-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
+  @media(min-width:600px){.print-grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px}}
+  .print-badge-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 12px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+  .print-badge-card .badge-type{font-size:10px;font-weight:800;letter-spacing:2px;text-transform:uppercase;padding:2px 10px;border-radius:4px}
+  .print-badge-card .badge-name{font-size:14px;font-weight:800}
+  @media(min-width:600px){.print-badge-card{padding:20px 16px} .print-badge-card .badge-name{font-size:15px}}
+
+  /* Sync status indicator */
+  .sync-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
+  .sync-dot.online{background:var(--green)} .sync-dot.offline{background:var(--red)} .sync-dot.syncing{background:var(--amber);animation:pulse 1s infinite}
+  .sync-bar{font-size:11px;color:var(--dim);padding:6px 16px;text-align:center;background:var(--surface);border-bottom:1px solid var(--border)}
+
+  /* Setup overlay */
+  .setup-overlay{position:fixed;inset:0;z-index:200;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:20px}
+  .setup-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:30px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto}
+  .setup-card h2{font-size:20px;font-weight:900;margin-bottom:16px}
+  .setup-card p{font-size:14px;color:var(--dim);line-height:1.6;margin-bottom:12px}
+  .setup-card code{background:var(--surface);padding:2px 8px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent)}
+  .setup-card ol{padding-left:20px;color:var(--dim);font-size:13px;line-height:1.8;margin-bottom:16px}
+  .setup-card ol li{margin-bottom:6px}
+  .setup-card textarea{width:100%;min-height:160px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:12px;font-family:'JetBrains Mono',monospace;font-size:12px;resize:vertical;outline:none}
+  .setup-card textarea:focus{border-color:var(--accent)}
+  .setup-card .setup-btn{width:100%;padding:14px;border-radius:10px;border:none;background:var(--accent);color:var(--bg);font-weight:800;font-size:15px;cursor:pointer;font-family:inherit;margin-top:12px}
+  .setup-card .setup-skip{width:100%;padding:12px;border-radius:8px;border:1px solid var(--border);background:none;color:var(--dim);font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;margin-top:8px}
+
+  @media print{
+    body{background:#fff!important;color:#000!important}
+    .header,.tabs,.toast,#view-scan,#view-manage,#view-history,#view-manual,.no-print,.sync-bar{display:none!important}
+    .container{max-width:100%;padding:10px}
+    #view-print{display:block!important}
+    .print-grid{grid-template-columns:repeat(4,1fr);gap:12px}
+    .print-badge-card{background:#fff!important;border:2px solid #333!important;border-radius:8px;padding:14px 8px;page-break-inside:avoid}
+    .print-badge-card .badge-type{border:1px solid #333;color:#000!important;background:#eee!important}
+    .print-badge-card .badge-name{color:#000}
+    .section-label{color:#000!important;font-size:16px;margin-bottom:16px}
+    .print-header-bar{display:block!important;text-align:center;margin-bottom:24px;font-size:22px;font-weight:900;color:#000}
+    .btn-print,.print-instructions{display:none!important}
+  }
+  .print-header-bar{display:none}
+  .flex-col{display:flex;flex-direction:column} .gap-8{gap:8px} .gap-10{gap:10px} .gap-20{gap:20px} .gap-24{gap:24px}
+  .empty{text-align:center;color:var(--dim);padding:40px 20px} .hidden{display:none!important}
+  .mt-6{margin-top:6px} .mt-10{margin-top:10px} .mt-20{margin-top:20px} .mt-28{margin-top:28px}
+  .mb-10{margin-bottom:10px} .mb-12{margin-bottom:12px} .mb-14{margin-bottom:14px}
+  .row-between{display:flex;align-items:center;justify-content:space-between}
+  .color-accent{color:var(--accent)} .color-green{color:var(--green)} .color-purple{color:var(--purple)}
+  .color-amber{color:var(--amber)} .color-orange{color:var(--orange)} .color-dim{color:var(--dim)} .fw-700{font-weight:700}
+  .fs-11{font-size:11px} .fs-12{font-size:12px} .fs-13{font-size:13px} .fs-15{font-size:15px} .fs-16{font-size:16px}
+</style>
+</head>
+<body>
+
+<!-- Setup overlay (shown if Firebase not configured) -->
+<div id="setup-overlay" class="setup-overlay hidden">
+  <div class="setup-card">
+    <h2><span style="color:var(--accent)">🔥</span> Cloud Sync Setup</h2>
+    <p>This connects the app to a free Google Firebase database so your data is shared across all phones, tablets, and computers. <strong style="color:var(--text)">One-time setup, takes ~5 minutes.</strong></p>
+
+    <div style="background:var(--surface);border-radius:10px;padding:16px;margin-bottom:16px">
+      <div style="font-weight:800;color:var(--accent);margin-bottom:10px;font-size:14px">Step 1 — Create a Firebase Project</div>
+      <p style="margin-bottom:8px">Open this link in a new tab:</p>
+      <a href="https://console.firebase.google.com" target="_blank" style="display:block;background:var(--accent);color:var(--bg);text-align:center;padding:12px;border-radius:8px;font-weight:800;text-decoration:none;font-size:14px;margin-bottom:8px">Open Firebase Console ↗</a>
+      <p style="font-size:13px">Sign in with any Google account, then click <strong style="color:var(--text)">"Create a project"</strong>. Name it whatever you want (e.g. "job-tracker"). You can turn off Google Analytics when asked — it's not needed.</p>
+    </div>
+
+    <div style="background:var(--surface);border-radius:10px;padding:16px;margin-bottom:16px">
+      <div style="font-weight:800;color:var(--accent);margin-bottom:10px;font-size:14px">Step 2 — Create the Database</div>
+      <p style="font-size:13px">Once your project is created, look at the <strong style="color:var(--text)">left sidebar</strong> and click <strong style="color:var(--text)">"Build"</strong>, then <strong style="color:var(--text)">"Realtime Database"</strong>.</p>
+      <p style="font-size:13px">Click the <strong style="color:var(--text)">"Create Database"</strong> button. Pick any location (default is fine). When it asks about security rules, choose <strong style="color:var(--text)">"Start in test mode"</strong> and click Enable.</p>
+    </div>
+
+    <div style="background:var(--surface);border-radius:10px;padding:16px;margin-bottom:16px">
+      <div style="font-weight:800;color:var(--accent);margin-bottom:10px;font-size:14px">Step 3 — Get Your Config Code</div>
+      <p style="font-size:13px">Look at the <strong style="color:var(--text)">very top of the left sidebar</strong> — you'll see <strong style="color:var(--text)">"Project Overview"</strong>. Right next to that text there's a tiny <strong style="color:var(--text)">⚙ gear icon</strong>. Click it and a dropdown will appear — select <strong style="color:var(--text)">"Project settings"</strong>.</p>
+      <p style="font-size:13px;margin-top:8px">Or just click this direct link after creating your project:</p>
+      <a href="https://console.firebase.google.com/project/_/settings/general/" target="_blank" style="display:block;background:var(--surface);border:1px solid var(--accent);color:var(--accent);text-align:center;padding:10px;border-radius:8px;font-weight:700;text-decoration:none;font-size:13px;margin:8px 0">Open Project Settings directly ↗</a>
+      <p style="font-size:13px;margin-top:8px">Scroll all the way down to <strong style="color:var(--text)">"Your apps"</strong>. If you don't see any apps listed, click the <strong style="color:var(--text)">web icon</strong> that looks like this: <code>&lt;/&gt;</code></p>
+      <p style="font-size:13px">Give it any name (e.g. "tracker"), click <strong style="color:var(--text)">"Register app"</strong>.</p>
+      <p style="font-size:13px">You'll see a code block. <strong style="color:var(--text)">Find the part that looks like this and copy it:</strong></p>
+      <div style="background:var(--bg);border-radius:8px;padding:12px;margin:10px 0;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--green);line-height:1.7;overflow-x:auto;white-space:pre">const firebaseConfig = {
+  apiKey: "AIzaSyB...............",
+  authDomain: "my-tracker-12345.firebaseapp.com",
+  databaseURL: "https://my-tracker-12345-default-rtdb.firebaseio.com",
+  projectId: "my-tracker-12345",
+  storageBucket: "my-tracker-12345.appspot.com",
+  messagingSenderId: "123456789012",
+  appId: "1:123456789012:web:abc123def456"
+};</div>
+      <p style="font-size:13px">Select everything <strong style="color:var(--text)">from the opening { to the closing }</strong> (including the curly braces). Right-click → Copy, or press Ctrl+C / Cmd+C.</p>
+    </div>
+
+    <div style="background:var(--surface);border-radius:10px;padding:16px;margin-bottom:16px">
+      <div style="font-weight:800;color:var(--accent);margin-bottom:10px;font-size:14px">Step 4 — Paste It Here</div>
+      <p style="font-size:13px;margin-bottom:10px">Click in the box below, then paste (Ctrl+V / Cmd+V / long-press → Paste on phone):</p>
+      <textarea id="firebase-config-input" placeholder='Paste your config here. It should look like:
+
+{
+  apiKey: "AIzaSy...",
+  authDomain: "your-project.firebaseapp.com",
+  databaseURL: "https://your-project-default-rtdb.firebaseio.com",
+  projectId: "your-project",
+  storageBucket: "your-project.appspot.com",
+  messagingSenderId: "123456789",
+  appId: "1:123:web:abc123"
+}'></textarea>
+    </div>
+
+    <button class="setup-btn" onclick="saveFirebaseConfig()">✅ Connect &amp; Start Using App</button>
+    <button class="setup-skip" onclick="skipFirebase()">Skip for now — just use on this device</button>
+    <p style="margin-top:12px;font-size:11px;line-height:1.5">You only paste this once per device. To change it later, go to ⚙ Manage → 🔥 Firebase Settings.</p>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<!-- Sync status bar -->
+<div id="sync-bar" class="sync-bar hidden">
+  <span id="sync-dot" class="sync-dot online"></span>
+  <span id="sync-text">Connected — data syncs across all devices</span>
+</div>
+
+<div class="header">
+  <div>
+    <h1><span>⏱</span> Job Time Tracker</h1>
+    <div class="sub">Scan QR codes to clock in &amp; out</div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" data-view="scan" onclick="switchView('scan')">⚡ Scan</button>
+    <button class="tab" data-view="manual" onclick="switchView('manual')">✏ Manual</button>
+    <button class="tab" data-view="manage" onclick="switchView('manage')">⚙ Manage</button>
+    <button class="tab" data-view="history" onclick="switchView('history')">📋 History</button>
+    <button class="tab" data-view="print" onclick="switchView('print')">🖨 Print</button>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ════════ SCAN VIEW ════════ -->
+  <div id="view-scan" class="flex-col gap-20">
+    <div class="card">
+      <div id="scan-label" class="section-label">Step 1 — Scan Worker QR Code</div>
+      <div class="scan-steps">
+        <div class="scan-step-dot active" id="step-dot-1"></div>
+        <div class="scan-step-dot" id="step-dot-2"></div>
+        <div class="scan-step-dot" id="step-dot-3"></div>
+      </div>
+      <div id="scanned-worker-box" class="scanned-info hidden">
+        <span><span style="color:var(--green)" class="fw-700">👤 <span id="scanned-worker-name"></span></span></span>
+        <button class="btn-cancel" onclick="cancelScan()">Cancel</button>
+      </div>
+      <div id="scanned-job-box" class="scanned-info hidden">
+        <span><span style="color:var(--accent)" class="fw-700">📋 <span id="scanned-job-name"></span></span></span>
+      </div>
+      <div class="scan-mode-toggle">
+        <button class="scan-mode-btn active" id="mode-camera-btn" onclick="setScanMode('camera')">📷 Camera</button>
+        <button class="scan-mode-btn" id="mode-type-btn" onclick="setScanMode('type')">⌨ Type Code</button>
+      </div>
+      <div id="camera-scan-area">
+        <div id="scanner-box"></div>
+        <div id="scanner-status" class="scanner-status hidden">Looking for QR code…</div>
+        <button class="btn-scan-start" id="start-scan-btn" onclick="startScanner()">📷 Tap to Start Camera</button>
+        <button class="btn-scan-stop hidden" id="stop-scan-btn" onclick="stopScanner()">■ Stop Camera</button>
+      </div>
+      <div id="type-scan-area" class="hidden">
+        <div class="input-row">
+          <input type="text" id="scan-input" class="input" placeholder="Enter worker code…">
+          <button class="btn" onclick="handleManualScan()">GO</button>
+        </div>
+      </div>
+      <div class="fs-11 color-dim mt-10">💡 3 scans to clock in: Worker → Job → Task. Scanning a clocked-in worker's code clocks them OUT.</div>
+    </div>
+    <div>
+      <div id="active-label" class="section-label">Active Workers (0)</div>
+      <div id="active-list" class="flex-col gap-10"><div class="card empty">No one is clocked in right now</div></div>
+    </div>
+  </div>
+
+  <!-- ════════ MANUAL ENTRY VIEW ════════ -->
+  <div id="view-manual" class="flex-col gap-20 hidden">
+    <div class="card" style="border-color:var(--amber)">
+      <div class="section-label" style="color:var(--amber)">✏ Manager Manual Time Entry</div>
+      <div class="fs-13 color-dim mb-14">Use this when someone forgot to scan. Select worker, job, task, and enter the date and times.</div>
+      <div class="flex-col gap-10">
+        <div><label class="fs-12 fw-700 color-dim" style="display:block;margin-bottom:4px">Worker</label><select id="manual-worker" class="input name-input" style="letter-spacing:0;text-transform:none;cursor:pointer"><option value="">— Select Worker —</option></select></div>
+        <div><label class="fs-12 fw-700 color-dim" style="display:block;margin-bottom:4px">Job</label><select id="manual-job" class="input name-input" style="letter-spacing:0;text-transform:none;cursor:pointer"><option value="">— Select Job —</option></select></div>
+        <div><label class="fs-12 fw-700 color-dim" style="display:block;margin-bottom:4px">Task</label><select id="manual-task" class="input name-input" style="letter-spacing:0;text-transform:none;cursor:pointer"><option value="">— Select Task —</option></select></div>
+        <div><label class="fs-12 fw-700 color-dim" style="display:block;margin-bottom:4px">Date</label><input type="date" id="manual-date" class="input-date" style="width:100%"></div>
+        <div style="display:flex;gap:10px">
+          <div style="flex:1"><label class="fs-12 fw-700 color-dim" style="display:block;margin-bottom:4px">Clock In</label><input type="time" id="manual-in" class="input-date" style="width:100%"></div>
+          <div style="flex:1"><label class="fs-12 fw-700 color-dim" style="display:block;margin-bottom:4px">Clock Out</label><input type="time" id="manual-out" class="input-date" style="width:100%"></div>
+        </div>
+        <div id="manual-preview" class="fs-13 color-dim" style="min-height:20px"></div>
+        <button class="btn" style="width:100%;margin-top:6px;background:var(--amber);color:var(--bg)" onclick="submitManualEntry()">✏ Add Time Entry</button>
+      </div>
+    </div>
+    <div><div class="section-label">Recent Manual Entries</div><div id="manual-recent" class="flex-col gap-8"></div></div>
+  </div>
+
+  <!-- ════════ MANAGE VIEW ════════ -->
+  <div id="view-manage" class="flex-col gap-24 hidden">
+    <div id="add-form" class="card hidden" style="border-color:var(--accent)">
+      <div id="add-form-title" class="fw-700 fs-15 mb-12"></div>
+      <div class="input-row"><input type="text" id="add-name-input" class="input name-input" placeholder=""><button class="btn" onclick="handleAdd()">Add</button><button class="btn btn-secondary" onclick="hideAddForm()">✕</button></div>
+    </div>
+    <div><div class="row-between mb-12"><div id="workers-count" class="section-label" style="margin-bottom:0">Workers (0)</div><button class="btn-add" onclick="showAddForm('worker')">+ Add Worker</button></div><div id="workers-list" class="flex-col gap-8"></div></div>
+    <div><div class="row-between mb-12"><div id="jobs-count" class="section-label" style="margin-bottom:0">Jobs (0)</div><button class="btn-add" onclick="showAddForm('job')">+ Add Job</button></div><div id="jobs-list" class="flex-col gap-8"></div></div>
+    <div><div class="row-between mb-12"><div id="tasks-count" class="section-label" style="margin-bottom:0">Tasks (0)</div><button class="btn-add" onclick="showAddForm('task')">+ Add Task</button></div><div class="fs-11 color-dim" style="margin-bottom:8px">e.g. Packing, Processing, Sorting…</div><div id="tasks-list" class="flex-col gap-8"></div></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn-reset" style="flex:1" onclick="resetAll()">Reset All Data</button>
+      <button class="btn-reset" style="flex:1;color:var(--accent);border-color:rgba(56,189,248,.2)" onclick="showSetup()">🔥 Firebase Settings</button>
+    </div>
+  </div>
+
+  <!-- ════════ HISTORY VIEW ════════ -->
+  <div id="view-history" class="flex-col gap-20 hidden">
+    <div class="card export-box"><label>From</label><input type="date" id="export-from" class="input-date"><label>To</label><input type="date" id="export-to" class="input-date"><button class="btn-export" onclick="exportCSV()">⬇ Export CSV</button><span id="export-count" class="export-count"></span></div>
+    <div><div id="history-label" class="section-label">Session History (0 completed)</div><div id="history-list" class="flex-col gap-8"></div></div>
+    <div id="summary-section" class="mt-28 hidden"><div class="section-label mb-14">Time Summary by Worker</div><div id="summary-list" class="flex-col gap-10"></div></div>
+  </div>
+
+  <!-- ════════ PRINT CODES VIEW ════════ -->
+  <div id="view-print" class="flex-col gap-24 hidden">
+    <div class="print-header-bar">Job Time Tracker — QR Badges</div>
+    <div class="print-instructions card" style="border-color:var(--purple)"><div class="fw-700 mb-12">🖨 Print Scannable QR Badges</div><div class="fs-13 color-dim">Select items, print, cut out, hand to crew or post at stations.</div></div>
+    <div><div class="row-between mb-12"><div class="section-label" style="margin-bottom:0">Workers</div><label class="fs-12 color-dim" style="cursor:pointer"><input type="checkbox" id="select-all-workers" onchange="toggleSelectAll('worker')" checked> All</label></div><div id="print-workers-checks" class="flex-col gap-8"></div></div>
+    <div><div class="row-between mb-12"><div class="section-label" style="margin-bottom:0">Jobs</div><label class="fs-12 color-dim" style="cursor:pointer"><input type="checkbox" id="select-all-jobs" onchange="toggleSelectAll('job')" checked> All</label></div><div id="print-jobs-checks" class="flex-col gap-8"></div></div>
+    <div><div class="row-between mb-12"><div class="section-label" style="margin-bottom:0">Tasks</div><label class="fs-12 color-dim" style="cursor:pointer"><input type="checkbox" id="select-all-tasks" onchange="toggleSelectAll('task')" checked> All</label></div><div id="print-tasks-checks" class="flex-col gap-8"></div></div>
+    <button class="btn-print" onclick="doPrint()">🖨 Print Selected Badges</button>
+    <div class="section-label mt-20">Preview</div>
+    <div id="print-preview" class="print-grid"></div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════════════════
+const STORAGE_KEY="jobtracker_data";
+const FB_CONFIG_KEY="jobtracker_fb_config";
+let data={workers:[],jobs:[],tasks:[],sessions:[]};
+let scanStep="worker";let scannedWorker=null;let scannedJob=null;
+let addType=null;let toastTimer=null;
+let printSelections={workers:{},jobs:{},tasks:{}};
+let scanMode="camera";let qrScanner=null;let scannerRunning=false;let scanCooldown=false;
+let fbRef=null;let fbConnected=false;let usingFirebase=false;
+
+// ══════════════════════════════════════════════════════════════════
+//  FIREBASE SETUP
+// ══════════════════════════════════════════════════════════════════
+function getSavedFBConfig(){try{const c=localStorage.getItem(FB_CONFIG_KEY);return c?JSON.parse(c):null}catch(e){return null}}
+function showSetup(){document.getElementById("setup-overlay").classList.remove("hidden")}
+function hideSetup(){document.getElementById("setup-overlay").classList.add("hidden")}
+
+function saveFirebaseConfig(){
+  const raw=document.getElementById("firebase-config-input").value.trim();
+  if(!raw){flash("Please paste your Firebase config.","error");return}
+  try{
+    // Parse the config - handle both JSON and JS object literal
+    let clean=raw;
+    if(!clean.startsWith("{"))clean="{"+clean+"}";
+    clean=clean.replace(/(\w+)\s*:/g,'"$1":').replace(/'/g,'"').replace(/,\s*}/g,"}").replace(/,\s*$/,"");
+    const config=JSON.parse(clean);
+    if(!config.databaseURL){flash("Missing databaseURL in config.","error");return}
+    localStorage.setItem(FB_CONFIG_KEY,JSON.stringify(config));
+    initFirebase(config);
+    hideSetup();
+    flash("Firebase connected! Data will sync across devices.","in");
+  }catch(e){flash("Invalid config format. Copy the full firebaseConfig object.","error");console.error(e)}
+}
+
+function skipFirebase(){hideSetup();flash("Using local storage only. Data stays on this device.","info")}
+
+function initFirebase(config){
+  try{
+    if(!firebase.apps.length) firebase.initializeApp(config);
+    else firebase.app();
+    fbRef=firebase.database().ref("jobtracker");
+    usingFirebase=true;
+
+    // Show sync bar
+    document.getElementById("sync-bar").classList.remove("hidden");
+
+    // Connection state
+    firebase.database().ref(".info/connected").on("value",snap=>{
+      fbConnected=snap.val()===true;
+      document.getElementById("sync-dot").className="sync-dot "+(fbConnected?"online":"offline");
+      document.getElementById("sync-text").textContent=fbConnected?"Connected — data syncs across all devices":"Offline — changes will sync when reconnected";
+    });
+
+    // Listen for remote changes
+    fbRef.on("value",snap=>{
+      const remote=snap.val();
+      if(remote){
+        data.workers=remote.workers||[];
+        data.jobs=remote.jobs||[];
+        data.tasks=remote.tasks||[];
+        data.sessions=remote.sessions||[];
+        saveLocal();
+        render();
+        renderManualRecent();
+      }
+    });
+
+    // Push current local data if DB is empty
+    fbRef.once("value",snap=>{
+      if(!snap.val()&&(data.workers.length||data.sessions.length)){
+        pushToFirebase();
+      }
+    });
+
+  }catch(e){
+    console.error("Firebase init error:",e);
+    flash("Firebase connection failed. Using local storage.","error");
+    usingFirebase=false;
+  }
+}
+
+function pushToFirebase(){
+  if(!usingFirebase||!fbRef)return;
+  document.getElementById("sync-dot").className="sync-dot syncing";
+  fbRef.set({workers:data.workers,jobs:data.jobs,tasks:data.tasks,sessions:data.sessions}).then(()=>{
+    document.getElementById("sync-dot").className="sync-dot online";
+  }).catch(e=>{console.error("Push error:",e)});
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  PERSISTENCE
+// ══════════════════════════════════════════════════════════════════
+function saveLocal(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(data))}catch(e){}}
+function loadLocal(){try{const r=localStorage.getItem(STORAGE_KEY);if(r){const p=JSON.parse(r);data.workers=p.workers||[];data.jobs=p.jobs||[];data.tasks=p.tasks||[];data.sessions=p.sessions||[]}}catch(e){}}
+function save(){saveLocal();pushToFirebase()}
+
+// ══════════════════════════════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════════════════════════════
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
+function fmtDuration(ms){if(ms<0)ms=0;const s=Math.floor(ms/1000);return String(Math.floor(s/3600)).padStart(2,"0")+":"+String(Math.floor((s%3600)/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0")}
+function fmtTime(ts){return new Date(ts).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}
+function fmtDate(ts){return new Date(ts).toLocaleDateString([],{month:"short",day:"numeric",year:"numeric"})}
+function fmtDateISO(ts){const d=new Date(ts);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function startOfDay(ds){return new Date(ds+"T00:00:00").getTime()}
+function endOfDay(ds){return new Date(ds+"T23:59:59").getTime()+999}
+function flash(msg,type){const el=document.getElementById("toast");el.textContent=msg;el.className="toast show "+type;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{el.className="toast"},3000)}
+function makeQR(text,size){size=size||4;const qr=qrcode(0,'M');qr.addData(text);qr.make();return qr.createDataURL(size,0)}
+function qrImgTag(code,px){px=px||64;return '<img src="'+makeQR(code,Math.max(2,Math.floor(px/20)))+'" width="'+px+'" height="'+px+'" style="image-rendering:pixelated;border-radius:4px" alt="'+code+'">'}
+
+// ══════════════════════════════════════════════════════════════════
+//  SCANNER
+// ══════════════════════════════════════════════════════════════════
+function setScanMode(mode){scanMode=mode;document.getElementById("mode-camera-btn").classList.toggle("active",mode==="camera");document.getElementById("mode-type-btn").classList.toggle("active",mode==="type");document.getElementById("camera-scan-area").classList.toggle("hidden",mode!=="camera");document.getElementById("type-scan-area").classList.toggle("hidden",mode!=="type");if(mode==="type"){stopScanner();document.getElementById("scan-input").focus()}}
+function startScanner(){
+  if(scannerRunning)return;
+  const box=document.getElementById("scanner-box");box.innerHTML='<div id="qr-reader" style="width:100%"></div>';
+  qrScanner=new Html5Qrcode("qr-reader");
+  qrScanner.start({facingMode:"environment"},{fps:15,qrbox:{width:250,height:250},aspectRatio:1.0,formatsToSupport:[Html5QrcodeSupportedFormats.QR_CODE]},onScanSuccess,()=>{}).then(()=>{
+    scannerRunning=true;document.getElementById("start-scan-btn").classList.add("hidden");document.getElementById("stop-scan-btn").classList.remove("hidden");document.getElementById("scanner-status").classList.remove("hidden");document.getElementById("scanner-status").textContent="📷 Camera active — point at a QR badge";document.getElementById("scanner-status").style.color="var(--green)";
+  }).catch(()=>{flash("Camera access denied. Use Type Code mode.","error");box.innerHTML=""});
+}
+function stopScanner(){if(qrScanner&&scannerRunning){qrScanner.stop().then(()=>{scannerRunning=false;document.getElementById("scanner-box").innerHTML="";document.getElementById("start-scan-btn").classList.remove("hidden");document.getElementById("stop-scan-btn").classList.add("hidden");document.getElementById("scanner-status").classList.add("hidden")}).catch(()=>{})}}
+function onScanSuccess(decodedText){
+  if(scanCooldown)return;scanCooldown=true;
+  const status=document.getElementById("scanner-status");status.textContent="✅ Scanned: "+decodedText.trim().toUpperCase();status.style.color="var(--amber)";
+  try{const ctx=new(window.AudioContext||window.webkitAudioContext)();const osc=ctx.createOscillator();const g=ctx.createGain();osc.connect(g);g.connect(ctx.destination);osc.frequency.value=880;g.gain.value=0.3;osc.start();osc.stop(ctx.currentTime+0.15)}catch(e){}
+  setTimeout(()=>{scanCooldown=false;if(scannerRunning){status.textContent="📷 Camera active — point at a QR badge";status.style.color="var(--green)"}},2000);
+  processCode(decodedText.trim().toUpperCase());
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  SCAN LOGIC
+// ══════════════════════════════════════════════════════════════════
+function processCode(code){
+  if(!code)return;
+  if(scanStep==="worker"){
+    const active=data.sessions.filter(s=>!s.endTime);
+    const as=active.find(s=>{const w=data.workers.find(w=>w.id===s.workerId);return w&&w.code===code});
+    if(as){as.endTime=Date.now();save();const w=data.workers.find(w=>w.id===as.workerId);const j=data.jobs.find(j=>j.id===as.jobId);flash((w?w.name:"Worker")+' clocked OUT of "'+(j?j.name:"?")+'"',"out");stopScanner();render();return}
+    const worker=data.workers.find(w=>w.code===code);if(!worker){flash("Unknown code: "+code,"error");return}
+    scannedWorker=worker;scanStep="job";flash("Hello, "+worker.name+"! Now scan your JOB QR code.","info");render();
+  }else if(scanStep==="job"){
+    const job=data.jobs.find(j=>j.code===code);if(!job){flash("Unknown job code: "+code,"error");return}
+    scannedJob=job;scanStep="task";flash('Job: "'+job.name+'" — now scan TASK QR code.','info');render();
+  }else if(scanStep==="task"){
+    const task=data.tasks.find(t=>t.code===code);if(!task){flash("Unknown task code: "+code,"error");return}
+    data.sessions.push({id:uid(),workerId:scannedWorker.id,jobId:scannedJob.id,taskId:task.id,startTime:Date.now(),endTime:null});
+    save();flash(scannedWorker.name+" → "+scannedJob.name+" → "+task.name,"in");
+    scanStep="worker";scannedWorker=null;scannedJob=null;stopScanner();render();
+  }
+}
+function handleManualScan(){const inp=document.getElementById("scan-input");processCode(inp.value.trim().toUpperCase());inp.value=""}
+function cancelScan(){scanStep="worker";scannedWorker=null;scannedJob=null;document.getElementById("scan-input").value="";render()}
+function clockOut(sid){const s=data.sessions.find(s=>s.id===sid);if(s){s.endTime=Date.now();save();const w=data.workers.find(w=>w.id===s.workerId);flash((w?w.name:"Worker")+" clocked out","out");render()}}
+
+// ══════════════════════════════════════════════════════════════════
+//  VIEWS & MANAGE
+// ══════════════════════════════════════════════════════════════════
+function switchView(view){
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.view===view));
+  ["scan","manual","manage","history","print"].forEach(v=>document.getElementById("view-"+v).classList.toggle("hidden",v!==view));
+  if(view!=="scan")stopScanner();
+  if(view==="scan"&&scanMode==="type")document.getElementById("scan-input").focus();
+  if(view==="history")initExportDates();
+  if(view==="manual")populateManualDropdowns();
+  render();
+}
+function showAddForm(type){addType=type;document.getElementById("add-form").classList.remove("hidden");document.getElementById("add-form-title").textContent="Add New "+{worker:"Worker",job:"Job",task:"Task"}[type];const inp=document.getElementById("add-name-input");inp.placeholder={worker:"Worker name…",job:"Job / project name…",task:"Task name (e.g. Packing)…"}[type];inp.value="";inp.focus()}
+function hideAddForm(){addType=null;document.getElementById("add-form").classList.add("hidden")}
+function handleAdd(){const name=document.getElementById("add-name-input").value.trim();if(!name||!addType)return;const code=name.slice(0,3).toUpperCase()+String(Math.floor(Math.random()*900)+100);if(addType==="worker")data.workers.push({id:uid(),name,code});else if(addType==="job")data.jobs.push({id:uid(),name,code});else data.tasks.push({id:uid(),name,code});save();flash(addType+' "'+name+'" added — code: '+code,"info");hideAddForm();render()}
+function removeItem(type,id){if(type==="worker"){data.workers=data.workers.filter(w=>w.id!==id);data.sessions=data.sessions.filter(s=>s.workerId!==id)}else if(type==="job"){data.jobs=data.jobs.filter(j=>j.id!==id);data.sessions=data.sessions.filter(s=>s.jobId!==id)}else{data.tasks=data.tasks.filter(t=>t.id!==id);data.sessions=data.sessions.filter(s=>s.taskId!==id)}save();render()}
+function resetAll(){if(confirm("Erase ALL data?")){data={workers:[],jobs:[],tasks:[],sessions:[]};save();render();flash("All data cleared.","info")}}
+
+// ══════════════════════════════════════════════════════════════════
+//  MANUAL ENTRY
+// ══════════════════════════════════════════════════════════════════
+function populateManualDropdowns(){
+  document.getElementById("manual-worker").innerHTML='<option value="">— Select Worker —</option>'+data.workers.map(w=>'<option value="'+w.id+'">'+w.name+'</option>').join("");
+  document.getElementById("manual-job").innerHTML='<option value="">— Select Job —</option>'+data.jobs.map(j=>'<option value="'+j.id+'">'+j.name+'</option>').join("");
+  document.getElementById("manual-task").innerHTML='<option value="">— Select Task —</option>'+data.tasks.map(t=>'<option value="'+t.id+'">'+t.name+'</option>').join("");
+  if(!document.getElementById("manual-date").value)document.getElementById("manual-date").value=fmtDateISO(Date.now());
+  updateManualPreview();
+}
+function updateManualPreview(){const d=document.getElementById("manual-date").value,i=document.getElementById("manual-in").value,o=document.getElementById("manual-out").value,p=document.getElementById("manual-preview");if(d&&i&&o){const s=new Date(d+"T"+i+":00").getTime(),e=new Date(d+"T"+o+":00").getTime();if(e>s){p.textContent="Duration: "+fmtDuration(e-s)+" ("+((e-s)/3600000).toFixed(2)+" hours)";p.style.color="var(--green)"}else{p.textContent="⚠ Clock out must be after clock in";p.style.color="var(--red)"}}else p.textContent=""}
+function submitManualEntry(){
+  const wId=document.getElementById("manual-worker").value,jId=document.getElementById("manual-job").value,tId=document.getElementById("manual-task").value,dv=document.getElementById("manual-date").value,iv=document.getElementById("manual-in").value,ov=document.getElementById("manual-out").value;
+  if(!wId){flash("Select a worker.","error");return}if(!jId){flash("Select a job.","error");return}if(!tId){flash("Select a task.","error");return}if(!dv||!iv||!ov){flash("Fill in date and both times.","error");return}
+  const start=new Date(dv+"T"+iv+":00").getTime(),end=new Date(dv+"T"+ov+":00").getTime();
+  if(end<=start){flash("Clock out must be after clock in.","error");return}
+  data.sessions.push({id:uid(),workerId:wId,jobId:jId,taskId:tId,startTime:start,endTime:end,manual:true});save();
+  const w=data.workers.find(x=>x.id===wId),j=data.jobs.find(x=>x.id===jId),t=data.tasks.find(x=>x.id===tId);
+  flash(w.name+" → "+j.name+" → "+t.name+" ("+((end-start)/3600000).toFixed(2)+"h)","in");
+  document.getElementById("manual-in").value="";document.getElementById("manual-out").value="";document.getElementById("manual-preview").textContent="";
+  renderManualRecent();render();
+}
+function deleteManualEntry(sid){data.sessions=data.sessions.filter(s=>s.id!==sid);save();renderManualRecent();render();flash("Entry removed.","info")}
+function renderManualRecent(){
+  const ms=data.sessions.filter(s=>s.manual&&s.endTime).sort((a,b)=>b.endTime-a.endTime).slice(0,10);
+  const el=document.getElementById("manual-recent");
+  if(!ms.length){el.innerHTML='<div class="card empty">No manual entries yet</div>';return}
+  el.innerHTML=ms.map(s=>{const w=data.workers.find(x=>x.id===s.workerId),j=data.jobs.find(x=>x.id===s.jobId),t=data.tasks.find(x=>x.id===s.taskId),dur=s.endTime-s.startTime;
+    return '<div class="card history-item" style="border-left:3px solid var(--amber)"><div class="history-row"><div><span class="fw-700">'+(w?w.name:"?")+'</span><span class="color-dim" style="margin:0 6px">→</span><span class="color-accent">'+(j?j.name:"?")+'</span><span class="color-dim" style="margin:0 6px">→</span><span class="color-orange">'+(t?t.name:"?")+'</span></div><div class="mono fw-700 fs-15 color-green">'+fmtDuration(dur)+'</div></div><div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px"><div class="history-meta" style="margin:0">'+fmtDate(s.startTime)+' &middot; '+fmtTime(s.startTime)+' – '+fmtTime(s.endTime)+' <span style="color:var(--amber)">(manual)</span></div><button class="btn-ghost" style="font-size:14px" onclick="deleteManualEntry(\''+s.id+'\')">🗑</button></div></div>'}).join("");
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  EXPORT CSV
+// ══════════════════════════════════════════════════════════════════
+function initExportDates(){const c=data.sessions.filter(s=>s.endTime);if(!c.length)return;const f=document.getElementById("export-from"),t=document.getElementById("export-to");if(!f.value)f.value=fmtDateISO(Math.min(...c.map(s=>s.startTime)));if(!t.value)t.value=fmtDateISO(Date.now());updateExportCount()}
+function getFilteredSessions(){const f=document.getElementById("export-from").value,t=document.getElementById("export-to").value;let c=data.sessions.filter(s=>s.endTime);if(f)c=c.filter(s=>s.startTime>=startOfDay(f));if(t)c=c.filter(s=>s.startTime<=endOfDay(t));return c.sort((a,b)=>a.startTime-b.startTime)}
+function updateExportCount(){const f=getFilteredSessions();document.getElementById("export-count").textContent=f.length+" session"+(f.length!==1?"s":"")}
+function exportCSV(){
+  const sessions=getFilteredSessions();if(!sessions.length){flash("No sessions in that range.","error");return}
+  const rows=[["Worker","Worker Code","Job","Job Code","Task","Task Code","Date","Clock In","Clock Out","Hours Worked"]];
+  sessions.forEach(s=>{const w=data.workers.find(x=>x.id===s.workerId),j=data.jobs.find(x=>x.id===s.jobId),t=data.tasks.find(x=>x.id===s.taskId);rows.push([w?w.name:"Removed",w?w.code:"",j?j.name:"Removed",j?j.code:"",t?t.name:"Removed",t?t.code:"",fmtDateISO(s.startTime),fmtTime(s.startTime),fmtTime(s.endTime),((s.endTime-s.startTime)/3600000).toFixed(2)])});
+  const csv=rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(",")).join("\n");
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="time-report_"+(document.getElementById("export-from").value||"all")+"_to_"+(document.getElementById("export-to").value||"all")+".csv";a.click();flash("Exported "+sessions.length+" sessions","info");
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  PRINT
+// ══════════════════════════════════════════════════════════════════
+function toggleSelectAll(type){const ck=document.getElementById("select-all-"+type+"s").checked;(type==="worker"?data.workers:type==="job"?data.jobs:data.tasks).forEach(i=>{printSelections[type+"s"][i.id]=ck});render()}
+function togglePrintItem(type,id){printSelections[type+"s"][id]=!printSelections[type+"s"][id];render()}
+function doPrint(){window.print()}
+
+// ══════════════════════════════════════════════════════════════════
+//  RENDER
+// ══════════════════════════════════════════════════════════════════
+function render(){
+  const labels={worker:"Step 1 — Scan Worker QR Code",job:"Step 2 — Scan Job QR Code",task:"Step 3 — Scan Task QR Code"};
+  document.getElementById("scan-label").textContent=labels[scanStep];
+  document.getElementById("scan-input").placeholder={worker:"Enter worker code…",job:"Enter job code…",task:"Enter task code…"}[scanStep];
+  const d1=document.getElementById("step-dot-1"),d2=document.getElementById("step-dot-2"),d3=document.getElementById("step-dot-3");
+  d1.className="scan-step-dot "+(scanStep==="worker"?"active":"done");d2.className="scan-step-dot "+(scanStep==="job"?"active":scanStep==="task"?"done":"");d3.className="scan-step-dot "+(scanStep==="task"?"active":"");
+  const sw=document.getElementById("scanned-worker-box");if(scannedWorker){sw.classList.remove("hidden");document.getElementById("scanned-worker-name").textContent=scannedWorker.name}else sw.classList.add("hidden");
+  const sj=document.getElementById("scanned-job-box");if(scannedJob){sj.classList.remove("hidden");document.getElementById("scanned-job-name").textContent=scannedJob.name}else sj.classList.add("hidden");
+
+  const active=data.sessions.filter(s=>!s.endTime);
+  document.getElementById("active-label").textContent="Active Workers ("+active.length+")";
+  const aL=document.getElementById("active-list");
+  if(!active.length)aL.innerHTML='<div class="card empty">No one is clocked in right now</div>';
+  else aL.innerHTML=active.map(s=>{const w=data.workers.find(x=>x.id===s.workerId),j=data.jobs.find(x=>x.id===s.jobId),t=data.tasks.find(x=>x.id===s.taskId);return '<div class="card active-card"><div><div class="fw-700 fs-16">'+(w?w.name:"?")+'</div><div class="color-accent fs-13" style="margin-top:2px">'+(j?j.name:"?")+'<span class="color-orange"> → '+(t?t.name:"?")+'</span></div><div class="color-dim fs-11" style="margin-top:2px">Started '+fmtTime(s.startTime)+'</div></div><div style="display:flex;align-items:center;gap:12px"><div class="active-timer" data-start="'+s.startTime+'">'+fmtDuration(Date.now()-s.startTime)+'</div><button class="btn btn-red" onclick="clockOut(\''+s.id+'\')">CLOCK OUT</button></div></div>'}).join("");
+
+  document.getElementById("workers-count").textContent="Workers ("+data.workers.length+")";
+  const wL=document.getElementById("workers-list");
+  if(!data.workers.length)wL.innerHTML='<div class="card empty" style="padding:30px">No workers yet</div>';
+  else wL.innerHTML=data.workers.map(w=>'<div class="card list-item"><div class="list-item-left"><div class="qr-wrap">'+qrImgTag(w.code,56)+'<span class="qr-code-label color-accent">'+w.code+'</span></div><div><div class="list-item-name">'+w.name+'</div></div></div><button class="btn-ghost" onclick="removeItem(\'worker\',\''+w.id+'\')">🗑</button></div>').join("");
+
+  document.getElementById("jobs-count").textContent="Jobs ("+data.jobs.length+")";
+  const jL=document.getElementById("jobs-list");
+  if(!data.jobs.length)jL.innerHTML='<div class="card empty" style="padding:30px">No jobs yet</div>';
+  else jL.innerHTML=data.jobs.map(j=>'<div class="card list-item"><div class="list-item-left"><div class="qr-wrap">'+qrImgTag(j.code,56)+'<span class="qr-code-label color-purple">'+j.code+'</span></div><div><div class="list-item-name">'+j.name+'</div></div></div><button class="btn-ghost" onclick="removeItem(\'job\',\''+j.id+'\')">🗑</button></div>').join("");
+
+  document.getElementById("tasks-count").textContent="Tasks ("+data.tasks.length+")";
+  const tL=document.getElementById("tasks-list");
+  if(!data.tasks.length)tL.innerHTML='<div class="card empty" style="padding:30px">No tasks yet</div>';
+  else tL.innerHTML=data.tasks.map(t=>'<div class="card list-item"><div class="list-item-left"><div class="qr-wrap">'+qrImgTag(t.code,56)+'<span class="qr-code-label color-orange">'+t.code+'</span></div><div><div class="list-item-name">'+t.name+'</div></div></div><button class="btn-ghost" onclick="removeItem(\'task\',\''+t.id+'\')">🗑</button></div>').join("");
+
+  const completed=data.sessions.filter(s=>s.endTime).sort((a,b)=>b.endTime-a.endTime);
+  document.getElementById("history-label").textContent="Session History ("+completed.length+" completed)";
+  const hL=document.getElementById("history-list");
+  if(!completed.length)hL.innerHTML='<div class="card empty">No completed sessions yet</div>';
+  else hL.innerHTML=completed.map(s=>{const w=data.workers.find(x=>x.id===s.workerId),j=data.jobs.find(x=>x.id===s.jobId),t=data.tasks.find(x=>x.id===s.taskId),dur=s.endTime-s.startTime;return '<div class="card history-item"><div class="history-row"><div><span class="fw-700">'+(w?w.name:"Removed")+'</span><span class="color-dim" style="margin:0 6px">→</span><span class="color-accent">'+(j?j.name:"Removed")+'</span><span class="color-dim" style="margin:0 6px">→</span><span class="color-orange">'+(t?t.name:"Removed")+'</span></div><div class="mono fw-700 fs-15 color-green">'+fmtDuration(dur)+'</div></div><div class="history-meta">'+fmtDate(s.startTime)+' &middot; '+fmtTime(s.startTime)+' – '+fmtTime(s.endTime)+(s.manual?' <span style="color:var(--amber)">(manual)</span>':"")+'</div></div>'}).join("");
+
+  const sS=document.getElementById("summary-section"),sL=document.getElementById("summary-list");
+  if(!completed.length)sS.classList.add("hidden");
+  else{sS.classList.remove("hidden");let h="";data.workers.forEach(w=>{const ws=completed.filter(s=>s.workerId===w.id);if(!ws.length)return;const tot=ws.reduce((s,x)=>s+(x.endTime-x.startTime),0);const bj={};ws.forEach(s=>{const key=s.jobId+"|"+s.taskId;bj[key]=(bj[key]||0)+(s.endTime-s.startTime)});let bars="";Object.entries(bj).forEach(([key,ms])=>{const[jid,tid]=key.split("|");const job=data.jobs.find(j=>j.id===jid);const task=data.tasks.find(t=>t.id===tid);const p=Math.round((ms/tot)*100);bars+='<div class="mt-6"><div style="display:flex;justify-content:space-between" class="fs-12"><span><span class="color-accent">'+(job?job.name:"?")+'</span> <span class="color-orange">→ '+(task?task.name:"?")+'</span></span><span class="color-dim">'+fmtDuration(ms)+' ('+p+'%)</span></div><div class="progress-bar"><div class="progress-fill" style="width:'+p+'%"></div></div></div>'});h+='<div class="card mb-10"><div class="summary-header"><span class="fw-700 fs-15">'+w.name+'</span><span class="mono fw-700 color-amber">'+fmtDuration(tot)+'</span></div>'+bars+'</div>'});sL.innerHTML=h}
+  updateExportCount();
+
+  data.workers.forEach(w=>{if(printSelections.workers[w.id]===undefined)printSelections.workers[w.id]=true});
+  data.jobs.forEach(j=>{if(printSelections.jobs[j.id]===undefined)printSelections.jobs[j.id]=true});
+  data.tasks.forEach(t=>{if(printSelections.tasks[t.id]===undefined)printSelections.tasks[t.id]=true});
+
+  document.getElementById("print-workers-checks").innerHTML=!data.workers.length?'<div class="color-dim fs-13">No workers</div>':data.workers.map(w=>'<label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px 0"><input type="checkbox" '+(printSelections.workers[w.id]?"checked":"")+'onchange="togglePrintItem(\'worker\',\''+w.id+'\')"><span class="fw-700">'+w.name+'</span><span class="mono fs-12 color-accent">'+w.code+'</span></label>').join("");
+  document.getElementById("print-jobs-checks").innerHTML=!data.jobs.length?'<div class="color-dim fs-13">No jobs</div>':data.jobs.map(j=>'<label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px 0"><input type="checkbox" '+(printSelections.jobs[j.id]?"checked":"")+'onchange="togglePrintItem(\'job\',\''+j.id+'\')"><span class="fw-700">'+j.name+'</span><span class="mono fs-12 color-purple">'+j.code+'</span></label>').join("");
+  document.getElementById("print-tasks-checks").innerHTML=!data.tasks.length?'<div class="color-dim fs-13">No tasks</div>':data.tasks.map(t=>'<label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px 0"><input type="checkbox" '+(printSelections.tasks[t.id]?"checked":"")+'onchange="togglePrintItem(\'task\',\''+t.id+'\')"><span class="fw-700">'+t.name+'</span><span class="mono fs-12 color-orange">'+t.code+'</span></label>').join("");
+
+  const pv=document.getElementById("print-preview");let ph="";
+  data.workers.filter(w=>printSelections.workers[w.id]).forEach(w=>{ph+='<div class="print-badge-card"><span class="badge-type" style="background:rgba(56,189,248,.15);color:#38bdf8">Worker</span><div class="badge-name">'+w.name+'</div><div>'+qrImgTag(w.code,120)+'</div><div class="mono fw-700 fs-13 color-accent">'+w.code+'</div></div>'});
+  data.jobs.filter(j=>printSelections.jobs[j.id]).forEach(j=>{ph+='<div class="print-badge-card"><span class="badge-type" style="background:rgba(167,139,250,.15);color:#a78bfa">Job</span><div class="badge-name">'+j.name+'</div><div>'+qrImgTag(j.code,120)+'</div><div class="mono fw-700 fs-13 color-purple">'+j.code+'</div></div>'});
+  data.tasks.filter(t=>printSelections.tasks[t.id]).forEach(t=>{ph+='<div class="print-badge-card"><span class="badge-type" style="background:rgba(251,146,60,.15);color:#fb923c">Task</span><div class="badge-name">'+t.name+'</div><div>'+qrImgTag(t.code,120)+'</div><div class="mono fw-700 fs-13 color-orange">'+t.code+'</div></div>'});
+  pv.innerHTML=ph||'<div class="empty" style="grid-column:1/-1">Select items above to preview</div>';
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════════════════
+setInterval(()=>{document.querySelectorAll(".active-timer[data-start]").forEach(el=>{el.textContent=fmtDuration(Date.now()-parseInt(el.dataset.start))})},1000);
+document.getElementById("export-from").addEventListener("change",updateExportCount);
+document.getElementById("export-to").addEventListener("change",updateExportCount);
+document.getElementById("scan-input").addEventListener("keydown",e=>{if(e.key==="Enter")handleManualScan()});
+document.getElementById("add-name-input").addEventListener("keydown",e=>{if(e.key==="Enter")handleAdd()});
+document.getElementById("manual-in").addEventListener("change",updateManualPreview);
+document.getElementById("manual-out").addEventListener("change",updateManualPreview);
+document.getElementById("manual-date").addEventListener("change",updateManualPreview);
+
+// Load local data first
+loadLocal();render();
+
+// Your Firebase config - hardcoded so every device auto-connects
+const HARDCODED_FB_CONFIG = {
+  apiKey: "AIzaSyBG9h4cjXkHBK1bxSAfQ_eUy1jijFlMSDQ",
+  authDomain: "time-tracking-f4a88.firebaseapp.com",
+  databaseURL: "https://time-tracking-f4a88-default-rtdb.firebaseio.com",
+  projectId: "time-tracking-f4a88",
+  storageBucket: "time-tracking-f4a88.firebasestorage.app",
+  messagingSenderId: "1098749464897",
+  appId: "1:1098749464897:web:20d0a037598526e6ef51c0"
+};
+
+// Auto-connect to Firebase - no setup needed
+initFirebase(HARDCODED_FB_CONFIG);
+</script>
+</body>
+</html>
